@@ -20,29 +20,47 @@ const routes = {
   "/heroes:post": async (request, response) => {
     // async iterators
     for await (const data of request) {
-      const item = JSON.parse(data)
-      const hero = new Hero(item)
-      const { error, valid } = hero.isValid()
+      try {
+        // await Promise.reject("/heroes:get")
 
-      if (!valid) {
-        response.writeHead(400, DEFAULT_HEADER)
-        response.write(JSON.stringify({ error: error.join(',') }))
+        const item = JSON.parse(data)
+        const hero = new Hero(item)
+        const { error, valid } = hero.isValid()
+
+        if (!valid) {
+          response.writeHead(400, DEFAULT_HEADER)
+          response.write(JSON.stringify({ error: error.join(',') }))
+
+          return response.end()
+        }
+
+        const id = await heroService.create(hero)
+        
+        response.writeHead(201, DEFAULT_HEADER)
+        response.write(JSON.stringify({ success: "User created with success!!", id }))
 
         return response.end()
+      } 
+      catch (error) {
+        return handleError(response)(error)
       }
-
-      const id = await heroService.create(hero)
-      
-      response.writeHead(201, DEFAULT_HEADER)
-      response.write(JSON.stringify({ success: "User created with success!!", id }))
-
-      return response.end()
     }
   },
 
   default: (request, response) => {
     response.write("Hello!")
     response.end()
+  }
+}
+
+const handleError = response => {
+  return error => {
+    console.error("Something went wrong", error)
+
+    response.writeHead(500, DEFAULT_HEADER)
+    response.write(JSON.stringify({ error: "Internal server error" }))
+
+    return response.end()
   }
 }
 
@@ -58,7 +76,7 @@ const handler = (request, response) => {
 
   const chosen = routes[key] || routes.default
 
-  return chosen(request, response)
+  return chosen(request, response).catch(handleError(response))
 }
 
 http.createServer(handler).listen(PORT, () => console.log("server is running at", PORT))
